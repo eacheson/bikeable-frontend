@@ -10,10 +10,16 @@
           <div class="entry-modal__content">
             <h3>{{ currentEntry.title }}</h3>
             <span class="address">{{ currentEntry.address }}</span>
+            <a href="#" class="vote" v-bind:class="{ 'is-active': hasVoted, disabled: !isLoggedIn }" @click.prevent="upvoteEntry">
+              <span class="vote__icon vote__icon--main"></span>
+              <span class="vote__icon vote__icon--white"></span>
+              <span class="vote__count">{{ currentEntry.votes }}</span>
+            </a>
             <div class="entry-modal__meta">
-              <span class="entry-modal__meta__item entry-modal__meta__item--votes">{{ currentEntry.votes }}</span>
-              <span class="entry-modal__meta__item entry-modal__meta__item--comments">{{ currentEntry.commentCount }}</span>
+                <span class="entry-modal__meta__item entry-modal__meta__item--comments">{{ currentEntry.commentCount }}</span>
             </div>
+
+
           </div>
           <button class="btn-close" @click="$emit('close')">✕</button>
           <button class="btn-show" @click="showEntry">Spot anzeigen</button>
@@ -32,7 +38,8 @@ export default {
   props: ['entryId', 'markerOffset'],
   data () {
     return {
-      currentEntry: null
+      currentEntry: null,
+      hasVoted: false
     }
   },
   computed: {
@@ -43,7 +50,10 @@ export default {
     },
     isEmbed() {
       return this.$route.query.embed;
-    }
+    },
+    isLoggedIn() {
+      return this.$store.getters.isLoggedIn;
+    },
   },
   watch: {
     entryId (to, from) {
@@ -75,6 +85,54 @@ export default {
           this.$store.commit('LOAD_FINISH');
         });
     },
+        checkUpvote() {
+      let userId = localStorage.getItem('userId');
+      let token = localStorage.getItem('token');
+
+      spots.checkUpvote(
+        {
+          spotId: this.entryId,
+          userId: userId,
+          authToken: token
+        }
+      ).then(
+        () => this.hasVoted = true,
+        () => this.hasVoted = false
+      );
+
+    },
+
+    upvoteEntry() {
+      if(!this.isLoggedIn) return;
+
+      let userId = localStorage.getItem('userId');
+      let token = localStorage.getItem('token');
+
+      this.$store.commit('LOAD_START');
+      this.hasVoted = true;
+
+      spots.upvoteSpot(
+        {
+          spotId: this.entryId,
+          userId: userId,
+          authToken: token
+        })
+        .then((data) => {
+          this.$store.commit('LOAD_FINISH');
+
+          if(data.lastAction == 'addVote') {
+            this.hasVoted = true;
+          }else{
+            this.hasVoted = false;
+          }
+          this.loadEntry();
+        },
+        (error) => {
+          this.$store.commit('SET_MESSAGE', error);
+          this.$store.commit('LOAD_FINISH');
+        });
+    },
+    
     enterInner(el, done) {
       Velocity(el,
         {
@@ -139,6 +197,67 @@ export default {
 <style lang="scss">
 
 @import '../styles/helpers';
+
+    .vote {
+      display: block;
+      text-decoration: none;
+      background-color: $c-grey;
+      border: 2px solid $c-highlight;
+      height: 3rem;
+      margin-top: 2rem;
+      text-align: center;
+      transition: .4s background-color;
+      position: relative;
+      overflow: hidden;
+      border-radius: 4px;
+
+      &.disabled {
+        pointer-events: none;
+      }
+
+      &:hover, &.is-active {
+        background-color: $c-highlight;
+
+        .vote__count {
+          color: #fff;
+        }
+        .vote__icon {
+          &--main {
+            transform: translateY(-3rem);
+          }
+          &--white {
+            transform: translateY(0);
+          }
+        }
+      }
+      &__count {
+        line-height: 3rem;
+        color: $c-highlight;
+        font-weight: 400;
+        font-size: 1.75rem;
+        transition: .4s color;
+      }
+      &__icon {
+        display: inline-block;
+        width: 22px;
+        height: 100%;
+        background-image: url('../assets/upvote-red.png');
+        background-size: 100%;
+        background-repeat: no-repeat;
+        background-position: center;
+        margin-right: .5rem;
+        position: absolute;
+        top: 0;
+        left: 50%;
+        margin-left: -3rem;
+        transition: .4s transform $easeInOutQuint;
+
+        &--white {
+          background-image: url('../assets/upvote-white.png');
+          transform: translateY(3rem);
+        }
+      }
+    }
 
 .entry-modal {
   position: fixed;
